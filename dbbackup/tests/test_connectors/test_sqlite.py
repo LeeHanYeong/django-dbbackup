@@ -4,7 +4,7 @@ from unittest.mock import mock_open, patch
 from django.db import connection
 from django.test import TestCase
 
-from dbbackup.db.sqlite import SqliteConnector, SqliteCPConnector
+from dbbackup.db.sqlite import SqliteConnector, SqliteCPConnector, SqliteBackupConnector
 from dbbackup.tests.testapp.models import CharModel, TextModel
 
 
@@ -63,5 +63,19 @@ class SqliteCPConnectorTest(TestCase):
 
     def test_restore_dump(self):
         connector = SqliteCPConnector()
+        dump = connector.create_dump()
+        connector.restore_dump(dump)
+
+
+class SqliteBackupConnectorTest(TestCase):
+    def test_create_dump(self):
+        connector = SqliteBackupConnector()
+        dump = connector.create_dump()
+        dump_content = dump.read()
+        self.assertTrue(dump_content)
+        self.assertTrue(dump_content.startswith(b"SQLite format 3"))
+
+    def test_restore_dump(self):
+        connector = SqliteBackupConnector()
         dump = connector.create_dump()
         connector.restore_dump(dump)

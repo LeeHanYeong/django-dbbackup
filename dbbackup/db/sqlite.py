@@ -1,7 +1,8 @@
+import sqlite3
 import warnings
 from io import BytesIO
 from shutil import copyfileobj
-from tempfile import SpooledTemporaryFile
+from tempfile import SpooledTemporaryFile, NamedTemporaryFile
 
 from django.db import IntegrityError, OperationalError
 
@@ -103,6 +104,41 @@ class SqliteCPConnector(BaseDBConnector):
             copyfileobj(db_file, dump)
         dump.seek(0)
         return dump
+
+    def restore_dump(self, dump):
+        path = self.connection.settings_dict["NAME"]
+        with open(path, "wb") as db_file:
+            copyfileobj(dump, db_file)
+
+
+class SqliteBackupConnector(BaseDBConnector):
+    """
+    Create a dump using the SQLite backup command,
+    which is safe to execute when the database is
+    in use (unlike simply copying the database file).
+    Restore by copying the backup file over the
+    database file.
+    """
+    extension = 'sqlite3'
+
+    def _write_dump(self, fileobj):
+        pass
+
+    def create_dump(self):
+        if not self.connection.is_usable():
+            self.connection.connect()
+        # Important: ensure the connection to the DB
+        # has been established.
+        self.connection.ensure_connection()
+        src_db_connection = self.connection.connection
+
+        bkp_db_file = NamedTemporaryFile()
+        bkp_path = bkp_db_file.name
+        with sqlite3.connect(bkp_path) as bkp_db_connection:
+            src_db_connection.backup(bkp_db_connection)
+
+        bkp_db_file.seek(0)
+        return bkp_db_file
 
     def restore_dump(self, dump):
         path = self.connection.settings_dict["NAME"]
