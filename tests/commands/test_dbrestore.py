@@ -18,7 +18,7 @@ from dbbackup.db.postgresql import PgDumpConnector
 from dbbackup.management.commands.dbrestore import Command as DbrestoreCommand
 from dbbackup.settings import HOSTNAME
 from dbbackup.storage import get_storage
-from dbbackup.tests.utils import (
+from tests.utils import (
     DEV_NULL,
     HANDLED_FILES,
     TARED_FILE,
@@ -83,6 +83,7 @@ class DbrestoreCommandRestoreBackupTest(TestCase):
 
     @patch("dbbackup.utils.getpass", return_value=None)
     def test_decrypt(self, *args):
+        add_private_gpg()
         self.command.path = None
         self.command.decrypt = True
         encrypted_file, self.command.filename = utils.encrypt_file(

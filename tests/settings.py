@@ -21,20 +21,20 @@ BLOB_DIR = os.path.join(TESTAPP_DIR, "blobs/")
 ADMINS = (("ham", "foo@bar"),)
 ALLOWED_HOSTS = ["*"]
 MIDDLEWARE_CLASSES = ()
-ROOT_URLCONF = "dbbackup.tests.testapp.urls"
+ROOT_URLCONF = "tests.testapp.urls"
 SECRET_KEY = "it's a secret to everyone"
 SITE_ID = 1
 MEDIA_ROOT = os.environ.get("MEDIA_ROOT") or tempfile.mkdtemp()
 INSTALLED_APPS = (
     "dbbackup",
-    "dbbackup.tests.testapp",
+    "tests.testapp",
 )
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 DATABASES = {
     "default": {
         "ENGINE": os.environ.get("DB_ENGINE", "django.db.backends.sqlite3"),
-        "NAME": os.environ.get("DB_NAME", ":memory:"),
+        "NAME": os.environ.get("DB_NAME", "/tmp/test_db.sqlite3"),
         "USER": os.environ.get("DB_USER"),
         "PASSWORD": os.environ.get("DB_PASSWORD"),
         "HOST": os.environ.get("DB_HOST"),
@@ -51,6 +51,7 @@ CACHES = {
 }
 
 SERVER_EMAIL = "dbbackup@test.org"
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
 DBBACKUP_GPG_RECIPIENT = "test@test"
 DBBACKUP_GPG_ALWAYS_TRUST = (True,)
@@ -61,7 +62,7 @@ STORAGES = {
         "OPTIONS": {},
     },
     "dbbackup": {
-        "BACKEND": os.environ.get("STORAGE", "dbbackup.tests.utils.FakeStorage"),
+        "BACKEND": os.environ.get("STORAGE", "tests.utils.FakeStorage"),
         "OPTIONS": dict(
             [
                 keyvalue.split("=")

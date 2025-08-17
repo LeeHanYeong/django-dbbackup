@@ -47,6 +47,8 @@ coverage.xml
 *,cover
 tests/media/
 coverage_html_report/
+*.db
+*.sqlite3
 
 # Translations
 *.mo
@@ -70,5 +72,9 @@ target/
 test-sqlite
 venv
 
-# Other
-*memorydb_default*
+# Visual Studio Code #
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.history
+%SystemDrive%
