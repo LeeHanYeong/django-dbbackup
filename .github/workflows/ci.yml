@@ -33,6 +33,29 @@ jobs:
               run: hatch run lint:check || true
             # TODO: Remove '|| true' when linting issues are resolved in future PR
 
+    lint-docs:
+        name: Lint Documentation
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: 3.x
+                  cache: pip
+            - name: Install dependencies
+              run: pip install --upgrade hatch uv
+            # FIXME: Link checking disabled due to github.com link HTTP rate limit issues.
+            # - name: Check documentation links
+            #   run: hatch run docs:linkcheck
+            - name: Check docs build
+              run: hatch run docs:build
+            - name: Validate changelog format
+              run: hatch run scripts/validate_changelog.py
+
     test-python:
         name: Python ${{ matrix.python-version }}
         runs-on: ubuntu-latest
@@ -41,8 +64,7 @@ jobs:
 
         strategy:
             matrix:
-                python-version:
-                    ["3.9", "3.10", "3.11", "3.12", "3.13"]
+                python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
         steps:
             - uses: actions/checkout@v4
@@ -88,7 +110,7 @@ jobs:
                   cache: pip
 
             - name: Install dependencies
-              run:  python -m pip install --upgrade pip hatch uv
+              run: python -m pip install --upgrade pip hatch uv
 
             - name: Run functional tests
               run: hatch run functional:test
@@ -153,6 +175,37 @@ jobs:
               with:
                   name: coverage-report
                   path: htmlcov
+
+    publish-docs:
+        name: Publish Documentation
+        runs-on: ubuntu-latest
+        if: github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/')
+        needs:
+            - lint-docs
+        permissions:
+            contents: write
+        concurrency:
+            group: publish-docs
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: 3.x
+                  cache: pip
+            - name: Install dependencies
+              run: pip install --upgrade hatch uv
+            - name: Configure Git
+              run: |
+                  git config user.name github-actions
+                  git config user.email github-actions@github.com
+            - name: Publish Develop Docs
+              if: github.ref_name == 'master'
+              run: hatch run docs:deploy_develop
+            - name: Publish Latest Docs
+              if: startsWith(github.ref, 'refs/tags/')
+              run: hatch run docs:deploy_latest ${{ github.ref_name }}
 
     # This workflow relies on the user manually creating a "stub release" on GitHub with the correct version number in the tag.
     publish-github:
