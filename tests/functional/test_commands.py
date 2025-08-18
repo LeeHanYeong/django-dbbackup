@@ -201,7 +201,7 @@ class MediaRestoreCommandTest(TestCase):
 
     def tearDown(self):
         clean_gpg_keys()
-        self._emtpy_media()
+        self._empty_media()
 
     def _create_file(self, name=None):
         name = name or tempfile._RandomNameSequence().next()
@@ -209,9 +209,12 @@ class MediaRestoreCommandTest(TestCase):
         with open(path, "a+b") as fd:
             fd.write(b"foo")
 
-    def _emtpy_media(self):
-        for fi in os.listdir(settings.MEDIA_ROOT):
-            os.remove(os.path.join(settings.MEDIA_ROOT, fi))
+    def _empty_media(self):
+        import shutil
+
+        if os.path.exists(settings.MEDIA_ROOT):
+            shutil.rmtree(settings.MEDIA_ROOT)
+        os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
 
     def _is_restored(self):
         return bool(os.listdir(settings.MEDIA_ROOT))
@@ -220,7 +223,7 @@ class MediaRestoreCommandTest(TestCase):
         # Create backup
         self._create_file("foo")
         execute_from_command_line(["", "mediabackup"])
-        self._emtpy_media()
+        self._empty_media()
         # Restore
         execute_from_command_line(["", "mediarestore"])
         self.assertTrue(self._is_restored())
@@ -230,7 +233,7 @@ class MediaRestoreCommandTest(TestCase):
         # Create backup
         self._create_file("foo")
         execute_from_command_line(["", "mediabackup", "--encrypt"])
-        self._emtpy_media()
+        self._empty_media()
         # Restore
         execute_from_command_line(["", "mediarestore", "--decrypt"])
         self.assertTrue(self._is_restored())
@@ -239,7 +242,7 @@ class MediaRestoreCommandTest(TestCase):
         # Create backup
         self._create_file("foo")
         execute_from_command_line(["", "mediabackup", "--compress"])
-        self._emtpy_media()
+        self._empty_media()
         # Restore
         execute_from_command_line(["", "mediarestore", "--uncompress"])
         self.assertTrue(self._is_restored())
@@ -262,3 +265,29 @@ class MediaRestoreCommandTest(TestCase):
         # Restore
         with self.assertRaises(SystemExit):
             execute_from_command_line(["", "mediarestore", "--uncompress"])
+
+    def test_restore_file_with_media_in_path(self, *args):
+        """Test that files with 'media' in their path are restored correctly."""
+        # Create a file with 'media' in the path - this was the bug
+        media_subdir = os.path.join(settings.MEDIA_ROOT, "uploads", "media", "images")
+        os.makedirs(media_subdir, exist_ok=True)
+        test_file = os.path.join(media_subdir, "test.jpg")
+        with open(test_file, "w") as f:
+            f.write("test image content")
+
+        # Create backup
+        execute_from_command_line(["", "mediabackup"])
+
+        # Remove the file and directory structure
+        os.remove(test_file)
+        shutil.rmtree(media_subdir)
+
+        # Restore backup
+        execute_from_command_line(["", "mediarestore"])
+
+        # Verify file was restored to correct location (not corrupted path)
+        self.assertTrue(os.path.exists(test_file), "File should be restored to original path with 'media' in it")
+
+        # Verify content is correct
+        with open(test_file, "r") as f:
+            self.assertEqual(f.read(), "test image content")
