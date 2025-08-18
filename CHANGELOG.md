@@ -35,6 +35,7 @@ Don't forget to remove deprecated code on each major release!
 - Fix encryption support when using `gnupg==5.x`.
 - Resolve SQLite backup temporary file locking issues on Windows.
 - Fix MediaRestore path corruption for files containing "media" in their paths.
+- Fix FTP storage restore issue where file objects without `fileno()` support caused `io.UnsupportedOperation` error during database restore operations.
 
 ### Security
 
