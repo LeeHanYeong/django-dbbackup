@@ -31,6 +31,7 @@ Don't forget to remove deprecated code on each major release!
 
 ### Fixed
 
+- Fix issues with parsing excess whitespace within `dbbackup -d "<COMMA_SEPARATED_ARGS>"`
 - Fix encryption support when using `gnupg==5.x`.
 - Resolve SQLite backup temporary file locking issues on Windows.
 
