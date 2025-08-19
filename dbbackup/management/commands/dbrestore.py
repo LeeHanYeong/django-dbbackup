@@ -3,12 +3,14 @@ Restore database.
 """
 
 import io
+
 from django.conf import settings
 from django.core.management.base import CommandError
 from django.db import connection
 
 from ... import utils
 from ...db.base import get_connector
+from ...signals import post_restore, pre_restore
 from ...storage import StorageError, get_storage
 from ._base import BaseDbBackupCommand, make_option
 
@@ -18,6 +20,9 @@ class Command(BaseDbBackupCommand):
     content_type = "db"
     no_drop = False
     pg_options = ""
+    input_database_name = None
+    database_name = None
+    database = None
 
     option_list = BaseDbBackupCommand.option_list + (
         make_option("-d", "--database", help="Database to restore"),
@@ -118,6 +123,16 @@ class Command(BaseDbBackupCommand):
 
         self.logger.info(f"Restoring: {input_filename}")
 
+        # Send pre_restore signal
+        pre_restore.send(
+            sender=self.__class__,
+            database=self.database,
+            database_name=self.database_name,
+            filename=input_filename,
+            servername=self.servername,
+            storage=self.storage,
+        )
+
         if self.decrypt:
             unencrypted_file, input_filename = utils.unencrypt_file(input_file, input_filename, self.passphrase)
             input_file.close()
@@ -153,3 +168,14 @@ class Command(BaseDbBackupCommand):
         self.connector.drop = not self.no_drop
         self.connector.pg_options = self.pg_options
         self.connector.restore_dump(input_file)
+
+        # Send post_restore signal
+        post_restore.send(
+            sender=self.__class__,
+            database=self.database,
+            database_name=self.database_name,
+            filename=input_filename,
+            servername=self.servername,
+            connector=self.connector,
+            storage=self.storage,
+        )
