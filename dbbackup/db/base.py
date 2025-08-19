@@ -18,18 +18,16 @@ from . import exceptions
 logger = logging.getLogger("dbbackup.command")
 logger.setLevel(logging.DEBUG)
 
-
+DEFAULT_CONNECTOR = "dbbackup.db.django.DjangoConnector"
 CONNECTOR_MAPPING = {
     "django.db.backends.sqlite3": "dbbackup.db.sqlite.SqliteConnector",
     "django.db.backends.mysql": "dbbackup.db.mysql.MysqlDumpConnector",
     "django.db.backends.postgresql": "dbbackup.db.postgresql.PgDumpBinaryConnector",
     "django.db.backends.postgresql_psycopg2": "dbbackup.db.postgresql.PgDumpBinaryConnector",
-    "django.db.backends.oracle": None,
     "django_mongodb_engine": "dbbackup.db.mongodb.MongoDumpConnector",
     "djongo": "dbbackup.db.mongodb.MongoDumpConnector",
     "django.contrib.gis.db.backends.postgis": "dbbackup.db.postgresql.PgDumpGisConnector",
     "django.contrib.gis.db.backends.mysql": "dbbackup.db.mysql.MysqlDumpConnector",
-    "django.contrib.gis.db.backends.oracle": None,
     "django.contrib.gis.db.backends.spatialite": "dbbackup.db.sqlite.SqliteConnector",
     "django_prometheus.db.backends.postgresql": "dbbackup.db.postgresql.PgDumpBinaryConnector",
     "django_prometheus.db.backends.sqlite3": "dbbackup.db.sqlite.SqliteConnector",
@@ -53,7 +51,10 @@ def get_connector(database_name=None):
     connection = connections[database_name]
     engine = connection.settings_dict["ENGINE"]
     connector_settings = settings.CONNECTORS.get(database_name, {})
-    connector_path = connector_settings.get("CONNECTOR", CONNECTOR_MAPPING[engine])
+
+    # Use Django connector as fallback for unmapped engines
+    connector_path = connector_settings.get("CONNECTOR", CONNECTOR_MAPPING.get(engine, DEFAULT_CONNECTOR))
+
     connector_module_path = ".".join(connector_path.split(".")[:-1])
     module = import_module(connector_module_path)
     connector_name = connector_path.split(".")[-1]
