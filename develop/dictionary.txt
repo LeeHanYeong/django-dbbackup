@@ -40,3 +40,9 @@ dumpable
 schemas
 redistributions
 whitespace
+pre
+post
+datasets
+mysql
+postgis
+postgresql
