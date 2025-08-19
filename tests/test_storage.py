@@ -232,3 +232,38 @@ class StorageCleanOldBackupsTest(TestCase):
     def test_keep_filter(self):
         self.storage.clean_old_backups(keep_number=1)
         self.assertListEqual(["2015-02-07-042810.bak"], HANDLED_FILES["deleted_files"])
+
+
+class StorageEdgeCasesTest(TestCase):
+    @patch("dbbackup.settings.STORAGE", "")
+    def test_get_storage_empty_path(self):
+        """Test get_storage with empty path raises ImproperlyConfigured"""
+        from django.core.exceptions import ImproperlyConfigured
+        
+        with self.assertRaises(ImproperlyConfigured):
+            get_storage()
+
+    def test_storage_str_method(self):
+        """Test Storage.__str__ method"""
+        storage = get_storage()
+        str_repr = str(storage)
+        self.assertTrue(str_repr.startswith("dbbackup-"))
+
+    @patch("django.core.files.storage.DefaultStorage", side_effect=ImportError())
+    def test_get_storage_class_fallback(self, mock_default_storage):
+        """Test get_storage_class fallback when DefaultStorage fails"""
+        # This should test the except block in get_storage_class
+        storage_class = get_storage_class()
+        self.assertIsNotNone(storage_class)
+
+    def test_get_older_backup_file_not_found(self):
+        """Test get_older_backup when no files are available"""
+        from dbbackup.storage import FileNotFound
+        
+        storage = get_storage()
+        HANDLED_FILES.clean()  # Ensure no backup files exist
+        
+        with self.assertRaises(FileNotFound) as context:
+            storage.get_older_backup()
+        
+        self.assertIn("There's no backup file available", str(context.exception))

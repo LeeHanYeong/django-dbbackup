@@ -177,9 +177,6 @@ unhandled exception occurs in a DBBackup command. Follows Django's standard
 
 Default: `django.conf.settings.ADMINS`
 
-!!! warning
-`DBBACKUP_FAILURE_RECIPIENTS` was used before and is now deprecated.
-
 ### DBBACKUP_EMAIL_SUBJECT_PREFIX
 
 Subject-line prefix for email messages sent by DBBackup.

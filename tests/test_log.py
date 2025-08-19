@@ -34,21 +34,13 @@ class LoggerDefaultTestCase(TestCase):
         logger.warning("a warning")
         logger.error("an error")
         logger.critical("a critical error")
-        if django.VERSION < (1, 9):
-            captures.check(
-                ("django", "DEBUG", "a noise"),
-                ("django", "INFO", "a message"),
-                ("django", "WARNING", "a warning"),
-                ("django", "ERROR", "an error"),
-                ("django", "CRITICAL", "a critical error"),
-            )
-        else:
-            captures.check(
-                ("django", "INFO", "a message"),
-                ("django", "WARNING", "a warning"),
-                ("django", "ERROR", "an error"),
-                ("django", "CRITICAL", "a critical error"),
-            )
+        # Django >= 1.9 behavior (since we support Django 4.2+)
+        captures.check(
+            ("django", "INFO", "a message"),
+            ("django", "WARNING", "a warning"),
+            ("django", "ERROR", "an error"),
+            ("django", "CRITICAL", "a critical error"),
+        )
 
     @log_capture()
     def test_dbbackup(self, captures):
