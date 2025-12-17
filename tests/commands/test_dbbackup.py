@@ -14,13 +14,20 @@ from django.test import TestCase
 from dbbackup.db.base import get_connector
 from dbbackup.management.commands.dbbackup import Command as DbbackupCommand
 from dbbackup.storage import get_storage
-from tests.utils import DEV_NULL, TEST_DATABASE, add_public_gpg, clean_gpg_keys
+from tests.utils import (
+    DEV_NULL,
+    HANDLED_FILES,
+    TEST_DATABASE,
+    add_public_gpg,
+    clean_gpg_keys,
+)
 
 
 @patch("dbbackup.settings.GPG_RECIPIENT", "test@test")
 @patch("sys.stdout", DEV_NULL)
 class DbbackupCommandSaveNewBackupTest(TestCase):
     def setUp(self):
+        HANDLED_FILES.clean()
         self.command = DbbackupCommand()
         self.command.servername = "foo-server"
         self.command.encrypt = False
@@ -42,6 +49,9 @@ class DbbackupCommandSaveNewBackupTest(TestCase):
     def test_compress(self):
         self.command.compress = True
         self.command._save_new_backup(TEST_DATABASE)
+        assert len(HANDLED_FILES["written_files"]) == 2
+        assert HANDLED_FILES["written_files"][0][0].endswith(".gz")
+        assert HANDLED_FILES["written_files"][1][0].endswith(".gz.metadata")
 
     def test_encrypt(self):
         if not GPG_AVAILABLE:
@@ -49,6 +59,9 @@ class DbbackupCommandSaveNewBackupTest(TestCase):
         add_public_gpg()
         self.command.encrypt = True
         self.command._save_new_backup(TEST_DATABASE)
+        assert len(HANDLED_FILES["written_files"]) == 2
+        assert HANDLED_FILES["written_files"][0][0].endswith(".gpg")
+        assert HANDLED_FILES["written_files"][1][0].endswith(".gpg.metadata")
 
     def test_path(self):
         local_tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tmp")
@@ -56,8 +69,10 @@ class DbbackupCommandSaveNewBackupTest(TestCase):
         self.command.path = os.path.join(local_tmp, "foo.bak")
         self.command._save_new_backup(TEST_DATABASE)
         assert os.path.exists(self.command.path)
+        assert os.path.exists(f"{self.command.path}.metadata")
         # tearDown
         os.remove(self.command.path)
+        os.remove(f"{self.command.path}.metadata")
 
     def test_schema(self):
         self.command.schemas = ["public"]
@@ -72,7 +87,8 @@ class DbbackupCommandSaveNewBackupTest(TestCase):
         self.command._save_new_backup(TEST_DATABASE)
         assert mock_write_to_storage.called
         # Verify the S3 path was passed correctly to write_to_storage
-        args, kwargs = mock_write_to_storage.call_args
+        # The first call should be the backup file
+        args, _kwargs = mock_write_to_storage.call_args_list[0]
         assert args[1] == "s3://mybucket/backups/db.bak"
 
     @patch("dbbackup.management.commands._base.BaseDbBackupCommand.write_to_storage")
@@ -91,7 +107,8 @@ class DbbackupCommandSaveNewBackupTest(TestCase):
                 self.command.path = s3_uri
                 self.command._save_new_backup(TEST_DATABASE)
                 assert mock_write_to_storage.called
-                args, kwargs = mock_write_to_storage.call_args
+                # The first call should be the backup file
+                args, _kwargs = mock_write_to_storage.call_args_list[0]
                 assert args[1] == s3_uri
 
     def test_path_local_file_still_works(self):
@@ -106,9 +123,11 @@ class DbbackupCommandSaveNewBackupTest(TestCase):
 
         # Verify the file was created (meaning write_local_file was used)
         assert os.path.exists(local_path)
+        assert os.path.exists(f"{local_path}.metadata")
 
         # Cleanup
         os.remove(local_path)
+        os.remove(f"{local_path}.metadata")
 
         # Test that paths containing 's3' but not starting with 's3://' are treated as local
         with patch("dbbackup.management.commands._base.BaseDbBackupCommand.write_local_file") as mock_write_local_file:
@@ -129,7 +148,7 @@ class DbbackupCommandSaveNewBackupTest(TestCase):
                         self.command._save_new_backup(TEST_DATABASE)
                     # Verify write_local_file was called
                     assert mock_write_local_file.called
-                    args, kwargs = mock_write_local_file.call_args
+                    args, _kwargs = mock_write_local_file.call_args
                     assert args[1] == local_path
 
     @patch("dbbackup.settings.DATABASES", ["db-from-settings"])
