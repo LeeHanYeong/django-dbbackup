@@ -123,9 +123,9 @@ python manage.py dbrestore --decrypt
 
 Requirements:
 
--   Install the python package python-gnupg: `pip install python-gnupg>=0.5.0`.
--   You need a GPG key. ([GPG manual](https://www.gnupg.org/gph/en/manual/c14.html))
--   Set the setting `DBBACKUP_GPG_RECIPIENT` to the name of the GPG key.
+- Install the python package python-gnupg: `pip install python-gnupg>=0.5.0`.
+- You need a GPG key. ([GPG manual](https://www.gnupg.org/gph/en/manual/c14.html))
+- Set the setting `DBBACKUP_GPG_RECIPIENT` to the name of the GPG key.
 
 Note (Windows): The `gpg` executable must be installed and on your PATH for encryption/decryption. If it is absent, django-dbbackup still works; only encryption-related features are unavailable. The test suite will automatically skip encryption tests when `gpg` is not found.
 
@@ -204,3 +204,53 @@ By default DBBackup uses values from `settings.DATABASES`. Use
 
 You must configure a storage backend (`STORAGES['dbbackup']`) to persist
 backups. See [Storage settings](storage.md) for supported options.
+
+## Custom metadata
+
+### DBBACKUP_BACKUP_METADATA_SETTER
+
+Function or dotted path (string) to a callable that returns a dictionary of extra metadata.
+
+The function must accept a single argument: a metadata dictionary containing information about the current backup operation. If a dictionary is returned, it will be merged into the current backup's metadata file. If `None` is returned, it is treated as an empty dictionary.
+
+Default: `None`
+
+```python
+def metadata_set(metadata):
+    last_backup_time = datetime.now().isoformat()
+    if metadata and metadata.get('engine') == 'my.custom.Engine':
+        region = os.environ.get('AWS_REGION')
+        return {'environment': 'AWS', 'region': region, 'backup_time': last_backup_time}
+    else:
+        return {'backup_time': last_backup_time}
+
+DBBACKUP_BACKUP_METADATA_SETTER = metadata_set
+```
+
+### DBBACKUP_RESTORE_METADATA_VALIDATOR
+
+Function or dotted path (string) to a callable that performs additional validation on the backup's metadata during restore operations. This validator runs **after** the built-in validation (e.g. database engine checks).
+
+The callable should accept a single argument: the metadata dictionary loaded from the current restore operation's metadata file. If this function returns `True`, the metadata is valid, `False` means the restore operation will be aborted. `None` can be returned to do nothing and allow `dbbackup` to decide. It may raise a `CommandError` with a descriptive message if validation fails.
+
+Default: `None`
+
+```python
+import os
+
+def validate_restore(metadata):
+    region = os.environ.get('AWS_REGION')
+    if not metadata.get('region') == region:
+        raise CommandError(f"Backup region does not match current region {region}; cross region restores are not allowed due to SMP-0123.")
+
+    last_backup_time = metadata.get('backup_time')
+    if datetime.now() - datetime.fromisoformat(last_backup_time) > timedelta(days=120):
+        return False # Skip restore since it is stale (>120 days)
+
+    if os.environ.get('AWS_REGION') == None:
+        return None # Do nothing if performing a backup outside AWS_REGION
+
+    return True
+
+DBBACKUP_RESTORE_METADATA_VALIDATOR = validate_restore
+```

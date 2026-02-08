@@ -153,6 +153,12 @@ class Command(BaseDbBackupCommand):
             )
             raise CommandError(msg)
 
+        # Check if we custom metadata validation is configured
+        user_metadata_valid = utils.validate_user_metadata(metadata)
+        if not user_metadata_valid:
+            msg = f"Custom metadata validation failed for backup file '{filename}'."
+            raise CommandError(msg)
+
         return metadata
 
     def _restore_backup(self):

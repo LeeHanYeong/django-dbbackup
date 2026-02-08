@@ -1,3 +1,4 @@
+import importlib
 import json
 from unittest.mock import Mock, patch
 
@@ -5,7 +6,9 @@ import pytest
 from django.conf import settings
 from django.core.management.base import CommandError
 from django.test import TestCase
+from django.test.utils import override_settings
 
+from dbbackup.management.commands import dbbackup
 from dbbackup.management.commands.dbrestore import Command as DbrestoreCommand
 
 
@@ -82,6 +85,55 @@ class DbrestoreMetadataTest(TestCase):
 
         # Should not raise
         self.command._check_metadata("backup.dump")
+
+    @override_settings(DBBACKUP_RESTORE_METADATA_VALIDATOR="tests.test_user_metadata.dummy_validator")
+    def test_metadata_match_custom(self):
+        importlib.reload(dbbackup.settings)
+        # Setup metadata
+        metadata = {"engine": settings.DATABASES["default"]["ENGINE"], "CSMT_VAL": "aabbcc-1122-3344_eu-west"}
+        self.command.storage.read_file.return_value = Mock(read=lambda: json.dumps(metadata))
+
+        # Should not raise
+        self.command._check_metadata("backup.dump")
+
+    @override_settings(DBBACKUP_RESTORE_METADATA_VALIDATOR="tests.test_user_metadata.dummy_validator")
+    def test_metadata_match_custom_fail(self):
+        importlib.reload(dbbackup.settings)
+        # Setup metadata
+        metadata = {"engine": settings.DATABASES["default"]["ENGINE"], "CSMT_VAL": "aabbcc-1122-3344_eu-ttt"}
+        self.command.storage.read_file.return_value = Mock(read=lambda: json.dumps(metadata))
+
+        # Should raise CommandError due to validation failure
+        with pytest.raises(CommandError):
+            self.command._check_metadata("backup.dump")
+
+    @override_settings(DBBACKUP_RESTORE_METADATA_VALIDATOR="tests.test_user_metadata.dummy_validator")
+    def test_metadata_match_custom_failwithcustomerror(self):
+        importlib.reload(dbbackup.settings)
+        # Setup metadata
+        metadata = {"engine": settings.DATABASES["default"]["ENGINE"], "CSMT_VAL": "xx-1122-3344_eu-west"}
+        self.command.storage.read_file.return_value = Mock(read=lambda: json.dumps(metadata))
+
+        # Should raise CommandError due to validation failure
+        with pytest.raises(ValueError, match="CSMT_VAL must start with 'aabbcc'"):
+            self.command._check_metadata("backup.dump")
+
+    @override_settings(DBBACKUP_RESTORE_METADATA_VALIDATOR="tests.test_user_metadata.dummy_validator")
+    def test_metadata_mismatch_custom_valid(self):
+        """Test that built-in validation runs before custom validation."""
+        importlib.reload(dbbackup.settings)
+        # Setup metadata with different engine (primary fail) but valid custom data
+        metadata = {
+            "engine": "django.db.backends.postgresql",
+            "CSMT_VAL": "aabbcc-1122-3344_eu-west"
+        }
+        self.command.storage.read_file.return_value = Mock(read=lambda: json.dumps(metadata))
+
+        # Should raise CommandError due to engine mismatch (primary), not custom validation
+        with pytest.raises(CommandError) as cm:
+            self.command._check_metadata("backup.dump")
+
+        assert "Restoring to a different database engine is not supported" in str(cm.value)
 
 
 class DbrestoreConnectorOverrideTest(TestCase):
