@@ -14,7 +14,9 @@ Don't forget to remove deprecated code on each major release!
 
 ## [Unreleased]
 
-- Nothing (yet)!
+### Changed
+
+- PostgreSQL `HOST` that are Unix/Windows socket paths will now be automatically URI-encoded to uphold `pg_restore` command line requirements.
 
 ## [5.3.0] - 2026-04-09
 
